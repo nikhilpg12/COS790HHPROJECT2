@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 
@@ -11,6 +11,7 @@ class LLMClientResponse:
     latency_seconds: float
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,7 +30,13 @@ class LLMCallRecord:
 
 
 class JSONLLMClient(Protocol):
-    def complete_json(self, *, operation: str, prompt: str, seed: int) -> LLMClientResponse:
+    def complete_json(
+        self,
+        *,
+        operation: str,
+        prompt: str,
+        seed: int,
+    ) -> LLMClientResponse:
         ...
 
 

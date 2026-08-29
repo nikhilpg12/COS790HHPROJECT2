@@ -12,6 +12,7 @@ import time
 from llm_gp_hh.config import RunConfig, development_config, paper_config
 from llm_gp_hh.gp.evolution import EvolutionEngine, EvolutionResult, GenerationState
 from llm_gp_hh.gp.individual import EvaluatedIndividual
+from llm_gp_hh.gp.selection import ranking_key
 from llm_gp_hh.gp.tree import node_count, tree_depth, tree_to_prefix
 from llm_gp_hh.llm.ollama_client import OllamaClient
 from llm_gp_hh.llm.operators import QwenTreeOperators
@@ -84,12 +85,24 @@ def candidate_record(item: EvaluatedIndividual) -> dict[str, object]:
 
 def generation_record(state: GenerationState, result: EvolutionResult) -> dict[str, object]:
     population = state.population
-    best = min(population, key=lambda item: (item.fitness, item.hcv, item.scv, item.id))
+    best = min(population, key=ranking_key)
+    feasible = [item for item in population if item.hcv == 0]
+    best_feasible = (
+        min(feasible, key=lambda item: (item.scv, item.id))
+        if feasible
+        else None
+    )
     invalid_calls = sum(
         1 for call in result.llm_calls if call.generation == state.index and not call.valid
     )
     valid_calls = sum(
         1 for call in result.llm_calls if call.generation == state.index and call.valid
+    )
+    crossover_offspring = sum(
+        item.operation == "crossover" for item in population
+    )
+    mutation_offspring = sum(
+        item.operation == "mutation" for item in population
     )
     return {
         "generation": state.index,
@@ -98,9 +111,14 @@ def generation_record(state: GenerationState, result: EvolutionResult) -> dict[s
         "best_fitness": best.fitness,
         "best_hcv": best.hcv,
         "best_scv": best.scv,
+        "feasible_count": len(feasible),
+        "best_feasible_id": best_feasible.id if best_feasible is not None else None,
+        "best_feasible_scv": best_feasible.scv if best_feasible is not None else None,
         "mean_fitness": statistics.fmean(item.fitness for item in population),
         "mean_hcv": statistics.fmean(item.hcv for item in population),
         "mean_scv": statistics.fmean(item.scv for item in population),
+        "crossover_offspring": crossover_offspring,
+        "mutation_offspring": mutation_offspring,
         "crossover_calls": state.operator_counts["crossover"],
         "mutation_calls": state.operator_counts["mutation"],
         "valid_llm_calls": valid_calls,

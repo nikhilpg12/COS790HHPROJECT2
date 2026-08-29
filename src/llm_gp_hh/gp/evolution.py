@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import math
 import random
 import statistics
 import time
@@ -13,8 +14,43 @@ from llm_gp_hh.toronto.fitness import scalar_fitness
 from llm_gp_hh.toronto.model import TorontoInstance
 
 from .individual import EvaluatedIndividual
-from .selection import tournament_select
-from .tree import Tree, tree_to_prefix
+from .selection import ranking_key, tournament_select
+from .tree import Tree, structural_signature, tree_to_prefix
+
+
+MAX_INITIAL_NO_PROGRESS_BATCHES = 12
+
+
+def _offspring_operator_schedule(
+    population_size: int,
+    crossover_rate: float,
+    rng: random.Random,
+) -> list[tuple[str, int]]:
+    """Build a shuffled operator schedule whose rates apply to offspring.
+
+    Crossover normally contributes two offspring while mutation contributes one.
+    If the rounded crossover target is odd, one crossover call contributes only
+    one retained child so the requested offspring proportion is still respected.
+    """
+    crossover_offspring = int(
+        math.floor(population_size * crossover_rate + 0.5)
+    )
+    crossover_offspring = max(0, min(population_size, crossover_offspring))
+    mutation_offspring = population_size - crossover_offspring
+
+    schedule: list[tuple[str, int]] = [
+        ("crossover", 2)
+        for _ in range(crossover_offspring // 2)
+    ]
+    if crossover_offspring % 2:
+        schedule.append(("crossover", 1))
+
+    schedule.extend(
+        ("mutation", 1)
+        for _ in range(mutation_offspring)
+    )
+    rng.shuffle(schedule)
+    return schedule
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,15 +85,7 @@ def _generation_summary(
     population: list[EvaluatedIndividual],
     operator_counts: dict[str, int],
 ) -> None:
-    best = min(
-        population,
-        key=lambda item: (
-            item.fitness,
-            item.hcv,
-            item.scv,
-            item.id,
-        ),
-    )
+    best = min(population, key=ranking_key)
 
     mean_fitness = statistics.fmean(
         item.fitness for item in population
@@ -80,6 +108,23 @@ def _generation_summary(
         f"| Fitness={best.fitness:.4f}"
     )
 
+    feasible = [item for item in population if item.hcv == 0]
+    _say(
+        f"        Feasible solutions: {len(feasible)}/{len(population)}"
+    )
+    if feasible:
+        best_feasible = min(feasible, key=lambda item: (item.scv, item.id))
+        _say(
+            f"        Best feasible: {best_feasible.id} "
+            f"| HCV=0 | SCV={best_feasible.scv:.4f} "
+            f"| Fitness={best_feasible.fitness:.4f}"
+        )
+    else:
+        _say(
+            "        Status: INFEASIBLE "
+            "| no HCV=0 solution in this generation"
+        )
+
     _say(
         f"        Mean: HCV={mean_hcv:.2f} "
         f"| SCV={mean_scv:.4f} "
@@ -87,12 +132,63 @@ def _generation_summary(
     )
 
     if index > 0:
+        crossover_offspring = sum(
+            item.operation == "crossover"
+            for item in population
+        )
+        mutation_offspring = sum(
+            item.operation == "mutation"
+            for item in population
+        )
         _say(
-            f"        Operators: "
+            f"        Offspring: "
+            f"crossover={crossover_offspring} "
+            f"| mutation={mutation_offspring}"
+        )
+        _say(
+            f"        LLM operator calls: "
             f"crossover={operator_counts['crossover']} "
             f"| mutation={operator_counts['mutation']}"
         )
 
+    _say()
+
+
+def _initial_diversity_summary(
+    population: list[EvaluatedIndividual],
+) -> None:
+    exact_trees = [
+        tree_to_prefix(item.tree)
+        for item in population
+    ]
+
+    structures = [
+        structural_signature(item.tree)
+        for item in population
+    ]
+
+    unique_exact = len(set(exact_trees))
+    unique_structures = len(set(structures))
+    population_size = len(population)
+
+    _say("[GEN 0] Diversity check")
+    _say(
+        f"        Population size: "
+        f"{population_size}"
+    )
+    _say(
+        f"        Unique exact trees: "
+        f"{unique_exact}/{population_size}"
+    )
+    _say(
+        f"        Unique structures: "
+        f"{unique_structures}/{population_size}"
+    )
+
+    _say(
+        "        Status: diversity metrics are informational only; "
+        "duplicates are allowed"
+    )
     _say()
 
 
@@ -199,6 +295,7 @@ class EvolutionEngine:
         # =========================================================
 
         initial: list[EvaluatedIndividual] = []
+        initial_no_progress_batches = 0
 
         _say(
             "[GEN 0] Creating initial population..."
@@ -219,10 +316,16 @@ class EvolutionEngine:
             call_seed = rng.getrandbits(63)
 
             _say(
-                f"[LLM] Requesting {count} "
-                f"initial heuristic tree(s) from Qwen "
+                f"[LLM] Need {count} more accepted "
+                f"initial individual(s) "
                 f"({len(initial)}/"
-                f"{config.population_size} created)..."
+                f"{config.population_size} created)."
+            )
+
+            _say(
+                "[LLM] Asking Qwen for a diverse "
+                "candidate pool using the accepted "
+                "population archive..."
             )
 
             llm_started = time.perf_counter()
@@ -231,16 +334,15 @@ class EvolutionEngine:
                 count=count,
                 max_depth=config.max_initial_depth,
                 seed=call_seed,
+                existing_trees=[
+                    individual.tree
+                    for individual in initial
+                ],
             )
 
             llm_elapsed = (
                 time.perf_counter()
                 - llm_started
-            )
-
-            _say(
-                f"[LLM] Initial generation returned "
-                f"in {llm_elapsed:.2f}s"
             )
 
             llm_calls.extend(
@@ -252,11 +354,69 @@ class EvolutionEngine:
                 for record in records
             )
 
-            if len(trees) != count:
+            if len(trees) > count:
                 raise ValueError(
                     f"initial operator returned "
                     f"{len(trees)} trees; "
-                    f"expected {count}"
+                    f"requested at most {count}"
+                )
+
+            if not trees:
+                initial_no_progress_batches += 1
+
+                _say(
+                    f"[SKIP] Initial LLM attempt produced "
+                    f"no usable trees after "
+                    f"{llm_elapsed:.2f}s."
+                )
+
+                _say(
+                    f"       No-progress batch "
+                    f"{initial_no_progress_batches}/"
+                    f"{MAX_INITIAL_NO_PROGRESS_BATCHES}."
+                )
+
+                if (
+                    initial_no_progress_batches
+                    >= MAX_INITIAL_NO_PROGRESS_BATCHES
+                ):
+                    raise LLMGenerationError(
+                        "initial population generation stalled "
+                        f"at {len(initial)}/"
+                        f"{config.population_size} accepted "
+                        "individuals after "
+                        f"{MAX_INITIAL_NO_PROGRESS_BATCHES} "
+                        "consecutive no-progress LLM batches"
+                    )
+
+                _say(
+                    "       No heuristic was generated by Python. "
+                    "Requesting another archive-aware "
+                    "LLM candidate pool..."
+                )
+                _say()
+                continue
+
+            initial_no_progress_batches = 0
+
+            if len(trees) < count:
+                _say(
+                    f"[LLM] Partial initial acceptance: "
+                    f"{len(trees)}/{count} needed tree(s) "
+                    f"accepted in {llm_elapsed:.2f}s "
+                    f"across {len(records)} LLM call(s)"
+                )
+                _say(
+                    "      Keeping every accepted LLM-generated "
+                    "tree. The updated population archive will "
+                    "be included in the next Qwen prompt."
+                )
+            else:
+                _say(
+                    f"[LLM] Initial generation accepted "
+                    f"{len(trees)}/{count} needed tree(s) "
+                    f"in {llm_elapsed:.2f}s "
+                    f"across {len(records)} LLM call(s)"
                 )
 
             for tree in trees:
@@ -278,6 +438,10 @@ class EvolutionEngine:
                         candidate_seed=candidate_seed,
                     )
                 )
+
+        _initial_diversity_summary(
+            initial
+        )
 
         initial_state = GenerationState(
             index=0,
@@ -323,10 +487,15 @@ class EvolutionEngine:
                 f"Starting generation..."
             )
 
-            while (
-                len(next_population)
-                < config.population_size
-            ):
+            operator_schedule = _offspring_operator_schedule(
+                config.population_size,
+                config.crossover_rate,
+                rng,
+            )
+
+            schedule_index = 0
+            while schedule_index < len(operator_schedule):
+                operation, offspring_to_keep = operator_schedule[schedule_index]
 
                 call_seed = (
                     rng.getrandbits(63)
@@ -336,10 +505,7 @@ class EvolutionEngine:
                 # CROSSOVER
                 # =============================================
 
-                if (
-                    rng.random()
-                    < config.crossover_rate
-                ):
+                if operation == "crossover":
 
                     parent_a = tournament_select(
                         current,
@@ -453,13 +619,7 @@ class EvolutionEngine:
                         "crossover"
                     ] += 1
 
-                    for child in children:
-
-                        if (
-                            len(next_population)
-                            >= config.population_size
-                        ):
-                            break
+                    for child in children[:offspring_to_keep]:
 
                         idx = len(
                             next_population
@@ -621,6 +781,8 @@ class EvolutionEngine:
                         )
                     )
 
+                schedule_index += 1
+
                 # =============================================
                 # PROGRESS
                 # =============================================
@@ -671,15 +833,7 @@ class EvolutionEngine:
             for item in state.population
         ]
 
-        best = min(
-            all_individuals,
-            key=lambda item: (
-                item.fitness,
-                item.hcv,
-                item.scv,
-                item.id,
-            ),
-        )
+        best = min(all_individuals, key=ranking_key)
 
         _say("=" * 72)
 
@@ -700,6 +854,27 @@ class EvolutionEngine:
             f"| SCV={best.scv:.4f} "
             f"| Fitness={best.fitness:.4f}"
         )
+
+        feasible_all = [item for item in all_individuals if item.hcv == 0]
+        _say(
+            f"       Feasible solutions found: "
+            f"{len(feasible_all)}/{len(all_individuals)}"
+        )
+        if feasible_all:
+            best_feasible = min(
+                feasible_all,
+                key=lambda item: (item.scv, item.id),
+            )
+            _say(
+                f"       Best feasible overall: {best_feasible.id} "
+                f"| HCV=0 | SCV={best_feasible.scv:.4f} "
+                f"| Fitness={best_feasible.fitness:.4f}"
+            )
+        else:
+            _say(
+                "       Status: INFEASIBLE "
+                "| no HCV=0 solution found in this run"
+            )
 
         _say("=" * 72)
 
