@@ -1,1448 +1,113 @@
-# 🧠 COS790 — LLM-Assisted Genetic Programming Hyper-Heuristic
+# LLM-GP Hyper-Heuristic for Educational Timetabling
 
-## Automated Generation of Construction Heuristics for Educational Timetabling
+## Project Overview
 
-This project investigates whether a **Large Language Model (LLM)** can replace selected generative components of a traditional **Genetic Programming (GP) generation construction hyper-heuristic** for educational timetabling.
+This project investigates whether a **Large Language Model (LLM)** can replace the generative components of a vanilla Genetic Programming (GP) generation construction hyper-heuristic for educational timetabling.
 
-The implementation is based on the generation construction hyper-heuristic approach described by **Pillay & Özcan (2019)** for the **Toronto Examination Timetabling Problem**.
+The system uses a standard GP evolutionary framework while using the LLM for:
 
-The key idea is:
-
-> Keep the conventional Genetic Programming framework, but use a local Large Language Model to generate the initial heuristic population and perform crossover and mutation.
-
-The LLM used in this project is:
-
-```text
-Qwen3-Coder 30B
-```
-
-running locally through:
-
-```text
-Ollama
-```
-
----
-
-# 🌱 What Does This Project Do?
-
-The LLM **does not directly create a timetable**.
-
-Instead, Qwen generates and evolves **GP heuristic trees**.
-
-These heuristics answer the question:
-
-> Which unscheduled exam should be scheduled next?
-
-The fixed timetable constructor then places the selected exam into an appropriate feasible period.
-
-The complete process is:
-
-```text
-                 VANILLA GP FRAMEWORK
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-          ▼              ▼              ▼
-    Initialisation    Selection      Variation
-          │              │              │
-          │         Tournament          │
-          │          Selection          │
-          │                             │
-          ▼                             ▼
-        Qwen                     ┌────────────┐
-          │                      │            │
-          │                      ▼            ▼
-          │                  Crossover     Mutation
-          │                      │            │
-          └──────────────┬───────┴────────────┘
-                         ▼
-                GP Heuristic Trees
-                         │
-                         ▼
-              Score Unscheduled Exams
-                         │
-                         ▼
-               Select Highest Score
-                         │
-                         ▼
-               Timetable Constructor
-                         │
-                         ▼
-                    HCV + SCV
-                         │
-                         ▼
-                      Fitness
-                         │
-                         ▼
-                Next GP Generation
-```
-
----
-
-# 🧩 Example Heuristic
-
-A generated GP heuristic might look like this:
-
-```text
-(* (/ c g) (+ a b))
-```
-
-The terminals represent information about the current timetabling state.
-
-| Terminal | Meaning |
-|---|---|
-| `a` | Minimum incremental Toronto proximity penalty over currently feasible periods |
-| `b` | Clashes with currently unallocated exams |
-| `c` | Total potential clashes |
-| `d` | Exam enrolment |
-| `e` | Number of currently feasible periods |
-| `f` | Clashes with already allocated exams |
-| `g` | Total number of students |
-| `h` | Total number of available periods |
-
-The heuristic is evaluated for every unscheduled exam.
-
-The exam with the **highest heuristic score** is selected next.
-
-The timetable constructor then attempts to place that exam into a feasible period with the lowest incremental soft-constraint penalty.
-
----
-
-# 🏗️ What Is Conventional GP and What Does the LLM Replace?
-
-The project keeps the following parts of Genetic Programming conventional:
-
-- GP population
-- GP tree representation
-- Tournament selection
-- Terminal set
-- Function set
-- Timetable constructor
-- Fitness calculation
-- Population evolution loop
-- Experimental logging
-- Termination conditions
-
-The LLM replaces:
-
-- Initial population generation
+- Initial GP population generation
 - GP crossover
 - GP mutation
 
-Therefore:
+The conventional GP framework is retained for:
 
-```text
-Traditional GP
-    ↓
-Random tree generation
-Random subtree crossover
-Random mutation
-```
+- Population management
+- Tournament selection
+- GP tree representation
+- Timetable construction
+- Fitness evaluation
+- Termination
+- Experiment logging
 
-becomes:
+The LLM does **not** generate timetables directly. It generates GP expression trees that act as low-level construction heuristics.
 
-```text
-LLM-Assisted GP
-    ↓
-Qwen initial tree generation
-Qwen crossover
-Qwen mutation
-```
+## Research Question
 
----
+> Can replacing the generative components of a vanilla genetic-programming generation construction hyper-heuristic with a large language model produce effective low-level construction heuristics for educational timetabling?
 
-# 🧬 GP Grammar
+## Technology
 
-The LLM may only create trees using the predefined GP grammar.
-
-## Terminals
-
-```text
-a b c d e f g h
-```
-
-## Arithmetic Functions
-
-```text
-+
--
-*
-/
-```
-
-Division is protected.
-
-If the denominator is zero, the evaluator returns `1`.
-
-## Relational Functions
-
-```text
-<
->
-<=
->=
-==
-!=
-```
-
-## Conditional Function
-
-```text
-if
-```
-
-Example:
-
-```text
-(if (> a b) c d)
-```
+- Python 3.11
+- Docker
+- Ollama
+- Qwen3-Coder 30B
+- Vanilla Genetic Programming
+- Toronto Examination Timetabling Benchmarks
 
 ---
 
-# 📁 Project Structure
+# Setup
 
-```text
-COS790HHPROJECT2/
-│
-├── README.md
-├── pyproject.toml
-│
-├── data/
-│   └── toronto/
-│       ├── car-f-92.crs
-│       ├── car-f-92.stu
-│       └── ...
-│
-├── src/
-│   └── llm_gp_hh/
-│       │
-│       ├── config.py
-│       ├── rng.py
-│       ├── live_smoke.py
-│       │
-│       ├── gp/
-│       │   ├── evolution.py
-│       │   ├── individual.py
-│       │   ├── selection.py
-│       │   └── tree.py
-│       │
-│       ├── llm/
-│       │   ├── ollama_client.py
-│       │   ├── operators.py
-│       │   ├── prompts.py
-│       │   └── protocol.py
-│       │
-│       ├── toronto/
-│       │   ├── attributes.py
-│       │   ├── constructor.py
-│       │   ├── fitness.py
-│       │   ├── model.py
-│       │   └── parser.py
-│       │
-│       └── experiments/
-│           ├── logging.py
-│           ├── reference_results.py
-│           └── run.py
-│
-└── tests/
-    ├── fixtures/
-    ├── test_config.py
-    ├── test_evolution.py
-    ├── test_llm_operators.py
-    ├── test_logging.py
-    ├── test_selection.py
-    ├── test_toronto_attributes.py
-    ├── test_toronto_constructor.py
-    ├── test_toronto_parser.py
-    └── test_tree.py
-```
+## 1. Install Ollama
 
----
+Install Ollama on Windows.
 
-# 🚀 Installation
-
-The project supports:
-
-- ✅ Windows
-- ✅ macOS
-- ✅ Linux
-
-You will need:
-
-1. Git
-2. Python 3.11 or newer
-3. Ollama
-4. Qwen3-Coder 30B
-
----
-
-# 🪟 Windows Setup
-
-## 1. Install Git
-
-Check whether Git is installed:
-
-```powershell
-git --version
-```
-
-If Git is installed, you should see something similar to:
-
-```text
-git version 2.x.x
-```
-
-If not, install **Git for Windows**.
-
----
-
-## 2. Install Python
-
-Python **3.11 is recommended**.
-
-Check your installed versions:
-
-```powershell
-py --list
-```
-
-or:
-
-```powershell
-python --version
-```
-
-You should have:
-
-```text
-Python 3.11+
-```
-
----
-
-## 3. Install Ollama
-
-Install Ollama for Windows.
-
-After installation, check:
-
-```powershell
-ollama --version
-```
-
----
-
-## 4. Clone the Repository
-
-```powershell
-git clone https://github.com/nikhilpg12/COS790HHPROJECT2.git
-```
-
-Enter the project:
-
-```powershell
-cd COS790HHPROJECT2
-```
-
----
-
-## 5. Create a Virtual Environment
-
-```powershell
-py -3.11 -m venv .venv
-```
-
-Activate it:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-You should now see something similar to:
-
-```text
-(.venv) PS C:\...
-```
-
-### PowerShell Activation Error
-
-If PowerShell blocks activation:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
-
-Then activate again:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
----
-
-## 6. Install the Project
-
-Upgrade pip:
-
-```powershell
-python -m pip install --upgrade pip
-```
-
-Install the project:
-
-```powershell
-pip install -e ".[dev]"
-```
-
----
-
-## 7. Download Qwen3-Coder
+Pull the Qwen model:
 
 ```powershell
 ollama pull qwen3-coder:30b
 ```
 
-The model is large, so downloading may take some time.
-
-Check that it is installed:
+Confirm that the model is installed:
 
 ```powershell
 ollama list
 ```
 
-You should see:
-
-```text
-qwen3-coder:30b
-```
-
----
-
-# 🍎 macOS Setup
-
-## 1. Install Git
-
-Check:
-
-```bash
-git --version
-```
-
-If you use Homebrew:
-
-```bash
-brew install git
-```
-
----
-
-## 2. Install Python 3.11
-
-Using Homebrew:
-
-```bash
-brew install python@3.11
-```
-
-Check:
-
-```bash
-python3.11 --version
-```
-
-You should see:
-
-```text
-Python 3.11.x
-```
-
----
-
-## 3. Install Ollama
-
-Using Homebrew:
-
-```bash
-brew install ollama
-```
-
-Alternatively, install the official Ollama macOS application.
-
-Check:
-
-```bash
-ollama --version
-```
-
----
-
-## 4. Clone the Repository
-
-```bash
-git clone https://github.com/nikhilpg12/COS790HHPROJECT2.git
-```
-
-Enter the project:
-
-```bash
-cd COS790HHPROJECT2
-```
-
----
-
-## 5. Create a Virtual Environment
-
-```bash
-python3.11 -m venv .venv
-```
-
-Activate it:
-
-```bash
-source .venv/bin/activate
-```
-
----
-
-## 6. Install the Project
-
-```bash
-python -m pip install --upgrade pip
-```
-
-Then:
-
-```bash
-pip install -e ".[dev]"
-```
-
----
-
-## 7. Download Qwen3-Coder
-
-```bash
-ollama pull qwen3-coder:30b
-```
-
-Check:
-
-```bash
-ollama list
-```
-
-You should see:
-
-```text
-qwen3-coder:30b
-```
-
----
-
-# 🐧 Linux Setup
-
-These instructions are suitable for Ubuntu/Debian-based systems.
-
----
-
-## 1. Install Git
-
-```bash
-sudo apt update
-```
-
-```bash
-sudo apt install git
-```
-
-Check:
-
-```bash
-git --version
-```
-
----
-
-## 2. Install Python
-
-```bash
-sudo apt install python3 python3-venv python3-pip
-```
-
-Check:
-
-```bash
-python3 --version
-```
-
-You need:
-
-```text
-Python 3.11+
-```
-
----
-
-## 3. Install Ollama
-
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-Check:
-
-```bash
-ollama --version
-```
-
-If Ollama is not running:
-
-```bash
-ollama serve
-```
-
-Leave that terminal open and use another terminal for the experiment.
-
----
-
-## 4. Clone the Repository
-
-```bash
-git clone https://github.com/nikhilpg12/COS790HHPROJECT2.git
-```
-
-Enter the project:
-
-```bash
-cd COS790HHPROJECT2
-```
-
----
-
-## 5. Create a Virtual Environment
-
-```bash
-python3 -m venv .venv
-```
-
-Activate:
-
-```bash
-source .venv/bin/activate
-```
-
----
-
-## 6. Install the Project
-
-```bash
-python -m pip install --upgrade pip
-```
-
-Then:
-
-```bash
-pip install -e ".[dev]"
-```
-
----
-
-## 7. Download Qwen3-Coder
-
-```bash
-ollama pull qwen3-coder:30b
-```
-
-Check:
-
-```bash
-ollama list
-```
-
----
-
-# ✅ Test the Installation
-
-Before running an experiment, run the automated tests.
-
-The command is the same on all operating systems:
-
-```bash
-pytest -q
-```
-
-All tests should pass.
-
-Example:
-
-```text
-38 passed
-```
-
-If tests fail, fix the installation problem before running a full experiment.
-
----
-
-# 🤖 Test Qwen Before Running an Experiment
-
-You can test the model directly.
+## 2. Allow Docker to Access Ollama
 
 Run:
 
-```bash
-ollama run qwen3-coder:30b
+```powershell
+setx OLLAMA_HOST "0.0.0.0:11434"
 ```
 
-Then type something simple:
+Restart Ollama after setting the environment variable.
 
-```text
-Write a Python function that calculates the mean of a list.
-```
+## 3. Build the Docker Image
 
-If Qwen responds, the model is working correctly.
-
-Exit Ollama using:
-
-```text
-/bye
-```
-
----
-
-# 🧪 First Small Experiment
-
-Before running the larger experiment, it is a good idea to perform a small test run.
-
-This confirms that:
-
-- Qwen is accessible
-- GP trees can be generated
-- Timetables can be constructed
-- Fitness can be calculated
-- Results can be saved
-
-The first benchmark used is:
-
-```text
-car-f-92 I
-```
-
-The actual dataset filenames are:
-
-```text
-car-f-92.crs
-car-f-92.stu
-```
-
-The instance contains:
-
-```text
-32 periods
-```
-
----
-
-# 🪟 Windows — Small Test Run
+From the project directory:
 
 ```powershell
-python -m llm_gp_hh.experiments.run `
-  --crs .\data\toronto\car-f-92.crs `
-  --stu .\data\toronto\car-f-92.stu `
-  --periods 32 `
-  --profile dev `
-  --population-size 4 `
-  --generations 2 `
-  --tournament-size 2 `
-  --initial-batch-size 4 `
-  --crossover-rate 0.8 `
-  --mutation-rate 0.2 `
-  --retry-limit 2 `
-  --seed 1001
+docker compose build --no-cache
 ```
 
 ---
 
-# 🍎 macOS — Small Test Run
+# Preliminary Experiment Configuration
 
-```bash
-python -m llm_gp_hh.experiments.run \
-  --crs ./data/toronto/car-f-92.crs \
-  --stu ./data/toronto/car-f-92.stu \
-  --periods 32 \
-  --profile dev \
-  --population-size 4 \
-  --generations 2 \
-  --tournament-size 2 \
-  --initial-batch-size 4 \
-  --crossover-rate 0.8 \
-  --mutation-rate 0.2 \
-  --retry-limit 2 \
-  --seed 1001
-```
-
----
-
-# 🐧 Linux — Small Test Run
-
-```bash
-python -m llm_gp_hh.experiments.run \
-  --crs ./data/toronto/car-f-92.crs \
-  --stu ./data/toronto/car-f-92.stu \
-  --periods 32 \
-  --profile dev \
-  --population-size 4 \
-  --generations 2 \
-  --tournament-size 2 \
-  --initial-batch-size 4 \
-  --crossover-rate 0.8 \
-  --mutation-rate 0.2 \
-  --retry-limit 2 \
-  --seed 1001
-```
-
----
-
-# 👀 What Should You See?
-
-The program displays progress while it runs.
-
-Example:
-
-```text
-========================================================================
-[RUN] car-f-92 | model=qwen3-coder:30b | seed=1001
-      population=4 | generations=2 | tournament=2
-      crossover=0.80 | mutation=0.20 | initial_batch=4
-========================================================================
-
-[GEN 0] Creating initial population...
-
-[LLM] Requesting 4 initial heuristic tree(s) from Qwen...
-
-[EVAL] g0-i0 | evaluating (+ a (* b c))
-       HCV=11 | SCV=4.8726 | Fitness=58.4709
-
-[EVAL] g0-i1 | evaluating (if (< d e) (+ f g) h)
-       HCV=46 | SCV=2.7896 | Fitness=131.1096
-```
-
-During later generations you will see:
-
-```text
-[SELECT] Crossover
-[LLM] Asking Qwen to perform crossover...
-
-[SELECT] Mutation
-[LLM] Asking Qwen to mutate the parent...
-
-[PROGRESS] Generation 1: 10/20 offspring evaluated
-```
-
-If an LLM crossover or mutation fails, the operation is skipped and the evolutionary run continues.
-
-Example:
-
-```text
-[SKIP] Mutation failed
-       Skipping this mutation attempt and continuing...
-```
-
----
-
-# 🧪 First Full Experiment
-
-Once the small test succeeds, run the first proper experiment.
-
-Configuration:
+The preliminary Toronto experiments use:
 
 | Parameter | Value |
 |---|---:|
-| Instance | `car-f-92 I` |
-| Population | 20 |
+| Population size | 20 |
 | Generations | 10 |
+| Candidate evaluations | 200 |
 | Tournament size | 4 |
+| Initial LLM batch size | 4 |
 | Crossover rate | 0.8 |
 | Mutation rate | 0.2 |
-| LLM retry limit | 2 |
-| Initial batch size | 4 |
-| Model | `qwen3-coder:30b` |
+| Retry limit | 2 |
 | Seed | 1001 |
+| Model | qwen3-coder:30b |
 
-This evaluates:
-
-```text
-20 × 10 = 200 heuristic candidates
-```
-
----
-
-# 🪟 Windows — First Full Experiment
-
-```powershell
-python -m llm_gp_hh.experiments.run `
-  --crs .\data\toronto\car-f-92.crs `
-  --stu .\data\toronto\car-f-92.stu `
-  --periods 32 `
-  --profile dev `
-  --population-size 20 `
-  --generations 10 `
-  --tournament-size 4 `
-  --initial-batch-size 4 `
-  --crossover-rate 0.8 `
-  --mutation-rate 0.2 `
-  --retry-limit 2 `
-  --seed 1001
-```
-
----
-
-# 🍎 macOS — First Full Experiment
-
-```bash
-python -m llm_gp_hh.experiments.run \
-  --crs ./data/toronto/car-f-92.crs \
-  --stu ./data/toronto/car-f-92.stu \
-  --periods 32 \
-  --profile dev \
-  --population-size 20 \
-  --generations 10 \
-  --tournament-size 4 \
-  --initial-batch-size 4 \
-  --crossover-rate 0.8 \
-  --mutation-rate 0.2 \
-  --retry-limit 2 \
-  --seed 1001
-```
-
----
-
-# 🐧 Linux — First Full Experiment
-
-```bash
-python -m llm_gp_hh.experiments.run \
-  --crs ./data/toronto/car-f-92.crs \
-  --stu ./data/toronto/car-f-92.stu \
-  --periods 32 \
-  --profile dev \
-  --population-size 20 \
-  --generations 10 \
-  --tournament-size 4 \
-  --initial-batch-size 4 \
-  --crossover-rate 0.8 \
-  --mutation-rate 0.2 \
-  --retry-limit 2 \
-  --seed 1001
-```
-
----
-
-# 📊 Understanding the Results
-
-Three important values are reported.
-
-## HCV
-
-```text
-Hard Constraint Violations
-```
-
-Hard constraints represent invalid timetable conditions.
-
-The most important target is:
-
-```text
-HCV = 0
-```
-
-This means the timetable is **feasible**.
-
----
-
-## SCV
-
-```text
-Soft Constraint Violations
-```
-
-SCV measures timetable quality.
-
-Once:
-
-```text
-HCV = 0
-```
-
-has been achieved, a lower SCV is better.
-
----
-
-## Fitness
-
-The fitness function is:
-
-```text
-Fitness = (HCV + 1) × SCV
-```
-
-Lower fitness is better.
-
-However, always inspect:
-
-```text
-HCV
-SCV
-```
-
-individually when analysing experimental results.
-
----
-
-# 🎯 What Is a Good Result?
-
-The first objective is:
-
-```text
-HCV = 0
-```
-
-because this means the evolved heuristic successfully guided the constructor to produce a feasible timetable.
-
-Once feasibility is achieved, the objective becomes reducing:
-
-```text
-SCV
-```
-
-The published Pillay & Özcan AHH reference for `car-f-92 I` is approximately:
-
-```text
-HCV = 0
-SCV = 4.32
-```
-
-This provides a useful reference point for experimental comparison.
-
----
-
-# 🏆 Example Successful Result
-
-A successful experimental run produced the following heuristic:
-
-```text
-(* (+ (if (> f d) f d) (/ c e)) (+ (/ f g) (/ c e)))
-```
-
-with:
-
-```text
-HCV = 0
-SCV = 4.60595
-```
-
-This means the generated heuristic successfully produced a **feasible Toronto examination timetable**.
-
----
-
-# 📈 Evolution Across Generations
-
-A typical successful run may initially produce infeasible timetables.
-
-For example:
-
-```text
-Generation 0: HCV = 5
-Generation 1: HCV = 4
-Generation 2: HCV = 4
-Generation 3: HCV = 4
-Generation 4: HCV = 1
-Generation 5: HCV = 0
-Generation 6: HCV = 0
-Generation 7: HCV = 0
-Generation 8: HCV = 0
-Generation 9: HCV = 0
-```
-
-This demonstrates the evolutionary search progressively discovering better construction heuristics.
-
----
-
-# 📂 Experiment Results
-
-Experiment outputs are stored inside:
+Results are written to:
 
 ```text
 results/
 ```
 
-Each run creates a separate directory.
-
-Important files include:
-
-```text
-run.json
-candidates.jsonl
-llm_calls.jsonl
-generations.csv
-best_heuristic.json
-summary.json
-```
-
 ---
 
-## `run.json`
+# Toronto Benchmark Experiments
 
-Contains the experimental configuration.
-
-Example information:
-
-```text
-model
-population size
-number of generations
-crossover rate
-mutation rate
-seed
-runtime
-```
-
----
-
-## `candidates.jsonl`
-
-Contains every evaluated GP heuristic.
-
-Each candidate records information such as:
-
-```text
-tree
-generation
-operation
-parents
-HCV
-SCV
-fitness
-evaluation time
-```
-
----
-
-## `llm_calls.jsonl`
-
-Contains the LLM interaction history.
-
-This includes:
-
-```text
-prompt
-Qwen response
-operation
-latency
-valid/invalid status
-errors
-```
-
-This file is useful for analysing how the LLM behaved during evolution.
-
----
-
-## `generations.csv`
-
-Contains summary information for every generation.
-
-Example:
-
-```text
-generation
-population size
-best fitness
-best HCV
-best SCV
-mean fitness
-mean HCV
-mean SCV
-crossover calls
-mutation calls
-```
-
----
-
-## `best_heuristic.json`
-
-Contains the best heuristic discovered during the run.
-
----
-
-## `summary.json`
-
-Contains the final experiment summary and published reference comparison.
-
----
-
-# 🎲 Repeating Experiments
-
-One run is **not sufficient for scientific conclusions**.
-
-Use different random seeds for independent runs.
-
-For example:
-
-```text
-1001
-1002
-1003
-1004
-1005
-```
-
-Do not treat repeated runs with exactly the same seed as statistically independent experiments.
-
----
-
-# 🧪 Example Five-Run Experiment
-
-Run the same configuration using:
-
-```text
-Seed 1001
-Seed 1002
-Seed 1003
-Seed 1004
-Seed 1005
-```
-
-Then compare:
-
-- Feasibility rate
-- Best HCV
-- Best SCV
-- Mean HCV
-- Mean SCV
-- Fitness
-- Runtime
-- Number of invalid LLM calls
-- Heuristic complexity
-
----
-
-# ⚠️ Troubleshooting
-
-## `ollama` command not found
-
-Restart the terminal after installing Ollama.
-
-Check:
-
-```bash
-ollama --version
-```
-
----
-
-## Qwen Model Missing
-
-Run:
-
-```bash
-ollama pull qwen3-coder:30b
-```
-
-Then:
-
-```bash
-ollama list
-```
-
----
-
-## Cannot Connect to Ollama
-
-Start Ollama.
-
-On Linux:
-
-```bash
-ollama serve
-```
-
-On Windows/macOS, make sure the Ollama application is running.
-
----
-
-## PowerShell Will Not Activate `.venv`
-
-Run:
+## car-f-92
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
-
-Then:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
----
-
-## Python Module Not Found
-
-Make sure the virtual environment is active.
-
-Then reinstall:
-
-```bash
-pip install -e ".[dev]"
-```
-
----
-
-## Tests Fail
-
-Run:
-
-```bash
-pytest -q
-```
-
-Read the first failure carefully before running experiments.
-
----
-
-## LLM Mutation or Crossover Fails
-
-The LLM may occasionally:
-
-- return an unchanged parent
-- return invalid GP syntax
-- generate a malformed expression
-
-The implementation validates LLM output.
-
-If a mutation or crossover remains invalid after the configured retries, that operator attempt is skipped and evolution continues.
-
-The experiment should therefore continue filling the population with valid offspring.
-
----
-
-# 💻 Hardware Considerations
-
-`qwen3-coder:30b` is a large local model.
-
-Performance depends heavily on:
-
-- GPU
-- VRAM
-- RAM
-- CPU
-- Ollama configuration
-
-The model may run on CPU-only systems, but generation will generally be significantly slower.
-
-The GP timetable evaluations themselves also require computation, particularly on larger Toronto benchmark instances.
-
----
-
-# 🔒 Local LLM Execution
-
-One important design choice is that the LLM runs locally.
-
-```text
-Experiment
-   ↓
-Local Python Code
-   ↓
-Local Ollama API
-   ↓
-Qwen3-Coder 30B
-```
-
-No cloud LLM API is required.
-
----
-
-# 📚 Research Context
-
-This project investigates the automated creation of **generation construction hyper-heuristics** for educational timetabling.
-
-The baseline framework is based on:
-
-> Pillay, N. & Özcan, E. (2019). Automated generation of constructive ordering heuristics for educational timetabling.
-
-The research question is centred on whether an LLM can effectively replace the generative components of Genetic Programming while retaining the conventional evolutionary framework.
-
----
-
-# 🔬 Core Research Idea
-
-Traditional GP:
-
-```text
-GP Framework
-    │
-    ├── Random Initialisation
-    ├── Tournament Selection
-    ├── GP Crossover
-    ├── GP Mutation
-    │
-    ▼
-Heuristic
-```
-
-Proposed approach:
-
-```text
-GP Framework
-    │
-    ├── Qwen Initialisation
-    ├── Tournament Selection
-    ├── Qwen Crossover
-    ├── Qwen Mutation
-    │
-    ▼
-Heuristic
-```
-
-Everything downstream remains conventional:
-
-```text
-Heuristic
-    ↓
-Timetable Constructor
-    ↓
-HCV + SCV
-    ↓
-Fitness
-```
-
----
-
-# 🚦 Quick Start
-
-If everything is already installed, the complete setup is:
-
-## Windows
-
-```powershell
-git clone https://github.com/nikhilpg12/COS790HHPROJECT2.git
-cd COS790HHPROJECT2
-
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-
-ollama pull qwen3-coder:30b
-
-pytest -q
-```
-
-Then run:
-
-```powershell
-python -m llm_gp_hh.experiments.run `
-  --crs .\data\toronto\car-f-92.crs `
-  --stu .\data\toronto\car-f-92.stu `
+docker compose run --rm gp `
+  --crs /app/data/toronto/car-f-92.crs `
+  --stu /app/data/toronto/car-f-92.stu `
   --periods 32 `
   --profile dev `
   --population-size 20 `
@@ -1452,93 +117,279 @@ python -m llm_gp_hh.experiments.run `
   --crossover-rate 0.8 `
   --mutation-rate 0.2 `
   --retry-limit 2 `
-  --seed 1001
+  --seed 1001 `
+  --results-dir /app/results
 ```
 
-## macOS / Linux
+## car-s-91
 
-```bash
-git clone https://github.com/nikhilpg12/COS790HHPROJECT2.git
-cd COS790HHPROJECT2
-
-python3 -m venv .venv
-source .venv/bin/activate
-
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-
-ollama pull qwen3-coder:30b
-
-pytest -q
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/car-s-91.crs `
+  --stu /app/data/toronto/car-s-91.stu `
+  --periods 35 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
 ```
 
-Then run:
+## ear-f-83
 
-```bash
-python -m llm_gp_hh.experiments.run \
-  --crs ./data/toronto/car-f-92.crs \
-  --stu ./data/toronto/car-f-92.stu \
-  --periods 32 \
-  --profile dev \
-  --population-size 20 \
-  --generations 10 \
-  --tournament-size 4 \
-  --initial-batch-size 4 \
-  --crossover-rate 0.8 \
-  --mutation-rate 0.2 \
-  --retry-limit 2 \
-  --seed 1001
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/ear-f-83.crs `
+  --stu /app/data/toronto/ear-f-83.stu `
+  --periods 24 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## hec-s-92
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/hec-s-92.crs `
+  --stu /app/data/toronto/hec-s-92.stu `
+  --periods 18 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## kfu-s-93
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/kfu-s-93.crs `
+  --stu /app/data/toronto/kfu-s-93.stu `
+  --periods 20 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## lse-f-91
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/lse-f-91.crs `
+  --stu /app/data/toronto/lse-f-91.stu `
+  --periods 18 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## pur-s-93
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/pur-s-93.crs `
+  --stu /app/data/toronto/pur-s-93.stu `
+  --periods 43 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## rye-s-93
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/rye-s-93.crs `
+  --stu /app/data/toronto/rye-s-93.stu `
+  --periods 23 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## sta-f-83
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/sta-f-83.crs `
+  --stu /app/data/toronto/sta-f-83.stu `
+  --periods 13 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## tre-s-92
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/tre-s-92.crs `
+  --stu /app/data/toronto/tre-s-92.stu `
+  --periods 23 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## uta-s-92
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/uta-s-92.crs `
+  --stu /app/data/toronto/uta-s-92.stu `
+  --periods 35 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## ute-s-92
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/ute-s-92.crs `
+  --stu /app/data/toronto/ute-s-92.stu `
+  --periods 10 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
+```
+
+## yor-f-83
+
+```powershell
+docker compose run --rm gp `
+  --crs /app/data/toronto/yor-f-83.crs `
+  --stu /app/data/toronto/yor-f-83.stu `
+  --periods 21 `
+  --profile dev `
+  --population-size 20 `
+  --generations 10 `
+  --tournament-size 4 `
+  --initial-batch-size 4 `
+  --crossover-rate 0.8 `
+  --mutation-rate 0.2 `
+  --retry-limit 2 `
+  --seed 1001 `
+  --results-dir /app/results
 ```
 
 ---
 
-# ✅ You Are Ready
+# Fitness
 
-If the following all work:
+Individuals are evaluated using:
 
 ```text
-✅ Python 3.11+
-✅ Git
-✅ Virtual environment
-✅ pip install -e ".[dev]"
-✅ Ollama
-✅ qwen3-coder:30b
-✅ pytest -q
+Fitness = (HCV + 1) × SCV
 ```
 
-then you are ready to run the LLM-assisted Genetic Programming hyper-heuristic.
+where:
 
-The first milestone to look for is:
+- **HCV** = Hard Constraint Violations
+- **SCV** = Soft Constraint Violations
+
+The first objective is to obtain:
 
 ```text
 HCV = 0
 ```
 
-Once that occurs, the generated heuristic has successfully guided the construction of a **feasible examination timetable**.
+Once a feasible timetable is obtained, lower SCV values are preferred.
 
 ---
 
-# 📖 Reference
+# Experimental Output
 
-Pillay, N., & Özcan, E. (2019).
+Each experiment records information such as:
 
-**Automated generation of constructive ordering heuristics for educational timetabling.**
+- Generated GP heuristic
+- Generation
+- HCV
+- SCV
+- Fitness
+- Crossover and mutation operations
+- LLM calls
+- Evaluation time
+- Best heuristic found
 
-*Annals of Operations Research, 275*, 181–208.
-
-DOI:
-
-```text
-10.1007/s10479-017-2625-x
-```
-
----
-
-# 🎓 Project
+The output directory is:
 
 ```text
-COS790
-Large Language Models for the Automated Creation of
-Generation Construction Hyper-Heuristics
-for Educational Timetabling
+results/
 ```
