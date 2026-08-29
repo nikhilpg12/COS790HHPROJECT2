@@ -275,6 +275,123 @@ You will need:
 3. Ollama
 4. Qwen3-Coder 30B
 
+If you only want a consistent, reproducible environment to run experiments in,
+skip the per-OS setup below and jump to **🐳 Running with Docker**.
+
+---
+
+# 🐳 Running with Docker
+
+Docker gives every group member the same Python version and the same pinned
+dependency versions, so experiment runs are reproducible across machines.
+
+### What runs where
+
+The container runs **only the Python experiment code**. The Qwen model is large
+and GPU-dependent, so **Ollama keeps running on the host** (exactly as in the
+native setup). The container talks to it over HTTP.
+
+```text
+Docker container (Python experiment)  ──HTTP──►  Ollama on host  ──►  qwen3-coder:30b
+```
+
+So you still need Ollama installed on the host with the model pulled:
+
+```bash
+ollama pull qwen3-coder:30b
+ollama serve   # Linux: leave running. macOS/Windows: the Ollama app is enough.
+```
+
+### Prerequisites
+
+- Docker
+- Ollama running on the host with `qwen3-coder:30b` pulled
+
+### 1. Build the image
+
+```bash
+docker build -t llm-gp-hh .
+```
+
+Dependency versions are pinned in [`requirements.lock.txt`](requirements.lock.txt),
+so the build is reproducible.
+
+### 2. Run a single experiment
+
+Results are written to `results/` on the host via a bind mount. `--user` keeps
+the generated files owned by you rather than root. `--add-host` lets the
+container reach Ollama on the host as `host.docker.internal` (needed on Linux;
+harmless on macOS/Windows).
+
+```bash
+mkdir -p results
+
+docker run --rm \
+  --add-host=host.docker.internal:host-gateway \
+  --user "$(id -u):$(id -g)" \
+  -v "$PWD/results:/app/results" \
+  llm-gp-hh \
+  python -m llm_gp_hh.experiments.run \
+    --crs ./data/toronto/car-f-92.crs \
+    --stu ./data/toronto/car-f-92.stu \
+    --periods 32 \
+    --profile dev \
+    --population-size 20 \
+    --generations 10 \
+    --tournament-size 4 \
+    --initial-batch-size 4 \
+    --crossover-rate 0.8 \
+    --mutation-rate 0.2 \
+    --retry-limit 2 \
+    --seed 1001
+```
+
+The benchmark data in `data/` is baked into the image, so `--crs` / `--stu`
+paths are relative to the project directory as usual.
+
+> **Windows PowerShell:** use `${PWD}` instead of `$PWD`, drop the
+> `--user "$(id -u):$(id -g)"` line, and put everything on one line with
+> backticks (`` ` ``) for line continuation. The Ollama desktop app just needs
+> to be running.
+
+If your Ollama runs somewhere else (or on a non-default port), override the URL:
+
+```bash
+docker run --rm -e OLLAMA_HOST=http://192.168.1.50:11434 ... llm-gp-hh ...
+```
+
+### 3. Run the full experiment suite
+
+`scripts/run_suite.sh` repeats one configuration across several seeds (default:
+seeds 1001–1005 on `car-f-92`), writing each run into its own directory under
+`results/`.
+
+```bash
+docker run --rm \
+  --add-host=host.docker.internal:host-gateway \
+  --user "$(id -u):$(id -g)" \
+  -v "$PWD/results:/app/results" \
+  llm-gp-hh \
+  bash scripts/run_suite.sh car-f-92 32 1001 1002 1003 1004 1005
+```
+
+Configuration can be overridden with environment variables, e.g.
+`-e POPULATION_SIZE=20 -e GENERATIONS=10 -e MODEL=qwen3-coder:30b`
+(see the top of [`scripts/run_suite.sh`](scripts/run_suite.sh)).
+
+### 4. Persist / access results from the host
+
+The `-v "$PWD/results:/app/results"` bind mount means every run directory
+(`run.json`, `candidates.jsonl`, `llm_calls.jsonl`, `generations.csv`,
+`best_heuristic.json`, `summary.json`) appears under `./results/` on the host
+and survives the container exiting. Nothing else needs to be persisted.
+
+### Run the tests in the container (optional)
+
+```bash
+docker run --rm llm-gp-hh python -m pytest -q
+```
+
 ---
 
 # 🪟 Windows Setup
