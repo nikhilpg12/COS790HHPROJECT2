@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
 
 TERMINAL_SET_TEXT = """GP terminal set T:
@@ -85,115 +85,28 @@ OUTPUT_TEXT = (
 )
 
 
-def _accepted_population_text(
-    accepted_population: Sequence[
-        Mapping[str, str | int]
-    ],
-    existing_structures: Sequence[str],
-) -> str:
-    if accepted_population:
-        lines: list[str] = [
-            "CURRENT ACCEPTED INITIAL POPULATION ARCHIVE",
-            "",
-            (
-                f"There are {len(accepted_population)} "
-                "LLM-generated GP individuals already accepted."
-            ),
-            (
-                "Use this archive only as diversity context. "
-                "Exact or structural duplicates are allowed and will not be rejected solely for duplication."
-            ),
-            "",
-        ]
-
-        for index, entry in enumerate(
-            accepted_population,
-            start=1,
-        ):
-            lines.extend(
-                [
-                    f"Accepted individual {index}:",
-                    f"Tree: {entry['tree']}",
-                    f"Structural signature: {entry['structure']}",
-                    f"Depth: {entry['depth']}",
-                    "",
-                ]
-            )
-
-        lines.extend(
-            [
-                "Diversity guidance:",
-                "- aim for a varied set of valid trees when practical",
-                "- exact or structural duplicates are allowed",
-                "- duplication is not a validity failure",
-            ]
-        )
-
-        return "\n".join(lines)
-
-    if existing_structures:
-        lines = "\n".join(
-            f"- {structure}"
-            for structure in existing_structures
-        )
-
-        return f"""CURRENT ACCEPTED STRUCTURAL SIGNATURES
-
-{lines}
-
-Use these only as diversity context. Duplicates are allowed.
-"""
-
-    return """CURRENT ACCEPTED INITIAL POPULATION ARCHIVE
-
-No GP individuals have been accepted yet.
-Create the first valid candidate set and aim for diversity where practical.
-"""
-
-
 def initial_prompt(
     *,
     count: int,
     max_depth: int,
-    accepted_population: Sequence[
-        Mapping[str, str | int]
-    ] = (),
-    needed_count: int | None = None,
-    existing_structures: Sequence[str] = (),
     error: str | None = None,
 ) -> str:
     """
     Build the Generation 0 prompt.
 
-    ``count`` is the number of candidate alternatives requested from Qwen.
-    ``needed_count`` is the number of population slots still needing to be
-    filled. Keeping them separate allows oversampling near the end of the
-    population without allowing Python to generate or modify heuristics.
+    Generation 0 candidates are checked only for GP validity.
     """
     if count < 1:
         raise ValueError(
             "count must be at least 1"
         )
 
-    if needed_count is None:
-        needed_count = count
-
-    if needed_count < 1:
-        raise ValueError(
-            "needed_count must be at least 1"
-        )
-
-    archive_text = _accepted_population_text(
-        accepted_population,
-        existing_structures,
-    )
-
     prompt = f"""You generate individuals for a Genetic Programming generation construction hyper-heuristic for Toronto examination timetabling.
 
 You replace the conventional random GP initialisation operator.
 
 The LLM is the sole mechanism that creates GP individuals.
-The host program only parses, validates, accepts, or rejects your candidates.
+The host program only parses and validates your candidates.
 It does not create replacement heuristics.
 
 You generate GP heuristic expression trees.
@@ -205,13 +118,7 @@ You do NOT generate timetables directly.
 
 {TREE_FORMAT_TEXT}
 
-{archive_text}
-
-The initial population currently needs {needed_count} more accepted individual(s).
-
 Generate exactly {count} candidate GP individuals.
-
-When the requested candidate count is larger than the number of remaining population slots, the extra candidates are deliberate alternatives. Generate all requested candidates so that the host program has multiple choices and can accept only as many as are still needed.
 
 Requirements:
 
@@ -220,19 +127,7 @@ Requirements:
 - use only functions from F
 - respect every function's arity
 - each tree must have depth at most {max_depth}
-- all candidates in this response must be exactly different from each other
-- all candidates in this response must have different operator-aware structural signatures
-- every candidate must be exactly different from every accepted tree in the archive
-- every candidate must have a structural signature different from every accepted structural signature in the archive
-- do not merely rename terminals in an existing tree structure
-- vary tree topology
-- vary root functions
-- vary arithmetic operators
-- vary relational operators where conditionals are used
-- vary conditional placement
-- vary subtree composition and depth
-- vary terminal placement
-- use both static and dynamic timetable attributes where useful
+- use static and dynamic timetable attributes where useful
 - do not output numeric constants
 - do not output Python
 - do not output Markdown
@@ -247,9 +142,7 @@ Requirements:
             "\nThe previous candidate response had the following "
             "validation problem(s):\n"
             f"{error}\n\n"
-            "Use that feedback as negative guidance. "
-            "Generate fresh candidates that avoid the rejected exact "
-            "trees and structures.\n"
+            "Correct those validation problems in the next response.\n"
         )
 
     return prompt

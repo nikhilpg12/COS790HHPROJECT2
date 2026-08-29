@@ -5,7 +5,6 @@ from collections.abc import Mapping, Sequence
 from llm_gp_hh.gp.tree import (
     Tree,
     parse_tree,
-    structural_signature,
     tree_to_prefix,
     validate_tree,
 )
@@ -142,19 +141,13 @@ class QwenTreeOperators:
         list[LLMCallRecord],
     ]:
         """
-        Ask Qwen for up to ``count`` new initial GP individuals.
+        Ask Qwen for up to ``count`` initial GP individuals.
 
-        Partial acceptance is deliberate:
+        Generation 0 candidates are checked only for GP validity.
+        Exact and structurally repeated trees are permitted.
 
-        - Qwen remains the sole generator.
-        - Python parses and validates each returned tree independently.
-        - valid trees are accepted even if an exact tree or topology has appeared before;
-        - diversity is encouraged in the prompt but is not an acceptance constraint;
-        - subsequent retry calls ask Qwen only for the number still missing.
-
-        The method may return fewer than ``count`` trees after the retry
-        budget is exhausted. The evolution engine keeps those accepted trees
-        and requests the remaining population in a new LLM batch.
+        ``existing_trees`` is retained only for compatibility with callers;
+        it is deliberately not used to filter or guide generation.
         """
 
         if count < 1:
@@ -164,12 +157,6 @@ class QwenTreeOperators:
 
         records: list[LLMCallRecord] = []
         accepted: list[Tree] = []
-
-        structure_seen = {
-            structural_signature(tree)
-            for tree in existing_trees
-        }
-
         error: str | None = None
 
         for attempt in range(
@@ -185,9 +172,6 @@ class QwenTreeOperators:
             prompt = initial_prompt(
                 count=remaining,
                 max_depth=max_depth,
-                existing_structures=sorted(
-                    structure_seen
-                ),
                 error=error,
             )
 
@@ -254,10 +238,6 @@ class QwenTreeOperators:
                         max_depth=max_depth,
                     )
 
-                    signature = (
-                        structural_signature(tree)
-                    )
-
                 except Exception as exc:
                     rejection_messages.append(
                         f"{raw_tree!r} -> {exc}"
@@ -265,7 +245,6 @@ class QwenTreeOperators:
                     continue
 
                 accepted.append(tree)
-                structure_seen.add(signature)
                 accepted_this_call += 1
 
             count_mismatch = (
@@ -296,7 +275,7 @@ class QwenTreeOperators:
                 if rejection_messages:
                     parts.append(
                         "rejected "
-                        f"{len(rejection_messages)} tree(s): "
+                        f"{len(rejection_messages)} invalid tree(s): "
                         + " | ".join(
                             rejection_messages
                         )
@@ -305,11 +284,11 @@ class QwenTreeOperators:
                 if accepted_this_call:
                     parts.append(
                         "partial acceptance: "
-                        f"{accepted_this_call} tree(s) kept"
+                        f"{accepted_this_call} valid tree(s) kept"
                     )
                 else:
                     parts.append(
-                        "no usable trees accepted"
+                        "no valid trees accepted"
                     )
 
                 call_error = "; ".join(parts)
@@ -332,9 +311,8 @@ class QwenTreeOperators:
 
             if rejection_messages:
                 error = (
-                    "Some previously generated trees "
-                    "were rejected. Generate only new "
-                    "structures. "
+                    "Some generated trees were invalid. "
+                    "Correct the reported validation errors. "
                     + " | ".join(
                         rejection_messages
                     )
@@ -343,14 +321,14 @@ class QwenTreeOperators:
                 error = (
                     "The previous response did not "
                     "return the requested number of "
-                    "trees. Generate exactly "
-                    f"{remaining} new tree(s)."
+                    "trees. Return exactly "
+                    f"{remaining} tree(s)."
                 )
             else:
                 error = (
                     "The previous response did not "
-                    "supply enough usable new trees. "
-                    f"Generate {remaining} new tree(s)."
+                    "supply enough valid trees. "
+                    f"Return {remaining} tree(s)."
                 )
 
         return accepted, records
