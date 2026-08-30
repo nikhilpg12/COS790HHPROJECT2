@@ -316,18 +316,44 @@ docker build -t llm-gp-hh .
 Dependency versions are pinned in [`requirements.lock.txt`](requirements.lock.txt),
 so the build is reproducible.
 
+### Connecting the container to Ollama
+
+By default Ollama only listens on `127.0.0.1:11434`, which a container cannot
+reach. Pick **one** of these:
+
+**Linux (recommended) — share the host network.** Add `--network host` and point
+the container at loopback. No change to how you start Ollama.
+
+```bash
+--network host -e OLLAMA_HOST=http://127.0.0.1:11434
+```
+
+**Any OS — expose Ollama on all interfaces.** Restart Ollama bound to `0.0.0.0`,
+then use `--add-host` so the container resolves `host.docker.internal`:
+
+```bash
+pkill ollama                              # stops the current server
+OLLAMA_HOST=0.0.0.0:11434 ollama serve    # leave running in its own terminal
+```
+```bash
+--add-host=host.docker.internal:host-gateway
+```
+(On macOS/Windows the Ollama desktop app already listens on `0.0.0.0`, so you
+only need the `--add-host` flag — this is the default in the image.)
+
+The examples below use the Linux `--network host` form.
+
 ### 2. Run a single experiment
 
 Results are written to `results/` on the host via a bind mount. `--user` keeps
-the generated files owned by you rather than root. `--add-host` lets the
-container reach Ollama on the host as `host.docker.internal` (needed on Linux;
-harmless on macOS/Windows).
+the generated files owned by you rather than root.
 
 ```bash
 mkdir -p results
 
 docker run --rm \
-  --add-host=host.docker.internal:host-gateway \
+  --network host \
+  -e OLLAMA_HOST=http://127.0.0.1:11434 \
   --user "$(id -u):$(id -g)" \
   -v "$PWD/results:/app/results" \
   llm-gp-hh \
@@ -349,12 +375,12 @@ docker run --rm \
 The benchmark data in `data/` is baked into the image, so `--crs` / `--stu`
 paths are relative to the project directory as usual.
 
-> **Windows PowerShell:** use `${PWD}` instead of `$PWD`, drop the
-> `--user "$(id -u):$(id -g)"` line, and put everything on one line with
-> backticks (`` ` ``) for line continuation. The Ollama desktop app just needs
-> to be running.
+> **macOS / Windows:** replace `--network host -e OLLAMA_HOST=http://127.0.0.1:11434`
+> with `--add-host=host.docker.internal:host-gateway`. On PowerShell also use
+> `${PWD}` instead of `$PWD`, drop the `--user "$(id -u):$(id -g)"` line, and use
+> backticks (`` ` ``) for line continuation.
 
-If your Ollama runs somewhere else (or on a non-default port), override the URL:
+If your Ollama runs on another machine, point at it directly (no `--network host`):
 
 ```bash
 docker run --rm -e OLLAMA_HOST=http://192.168.1.50:11434 ... llm-gp-hh ...
@@ -368,7 +394,8 @@ seeds 1001–1005 on `car-f-92`), writing each run into its own directory under
 
 ```bash
 docker run --rm \
-  --add-host=host.docker.internal:host-gateway \
+  --network host \
+  -e OLLAMA_HOST=http://127.0.0.1:11434 \
   --user "$(id -u):$(id -g)" \
   -v "$PWD/results:/app/results" \
   llm-gp-hh \
