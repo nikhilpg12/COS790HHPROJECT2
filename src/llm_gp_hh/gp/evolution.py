@@ -99,7 +99,8 @@ def _generation_summary(
         item.scv for item in population
     )
 
-    _say(f"[GEN {index}] Complete")
+    label = "[INIT]" if index < 0 else f"[GEN {index}]"
+    _say(f"{label} Complete")
 
     _say(
         f"        Best: {best.id} "
@@ -131,7 +132,7 @@ def _generation_summary(
         f"| Fitness={mean_fitness:.4f}"
     )
 
-    if index > 0:
+    if index >= 0:
         crossover_offspring = sum(
             item.operation == "crossover"
             for item in population
@@ -253,14 +254,14 @@ class EvolutionEngine:
         _say()
 
         # =========================================================
-        # GENERATION 0
+        # INITIAL PARENT POPULATION
         # =========================================================
 
         initial: list[EvaluatedIndividual] = []
         initial_no_progress_batches = 0
 
         _say(
-            "[GEN 0] Creating initial population..."
+            "[INIT] Creating initial parent population..."
         )
 
         while len(initial) < config.population_size:
@@ -300,7 +301,7 @@ class EvolutionEngine:
             llm_calls.extend(
                 replace(
                     record,
-                    generation=0,
+                    generation=-1,
                     parent_ids=(),
                 )
                 for record in records
@@ -379,8 +380,8 @@ class EvolutionEngine:
                     self._evaluate(
                         instance=instance,
                         tree=tree,
-                        identifier=f"g0-i{idx}",
-                        generation=0,
+                        identifier=f"init-i{idx}",
+                        generation=-1,
                         operation="initial",
                         parent_ids=(),
                         candidate_seed=candidate_seed,
@@ -388,7 +389,7 @@ class EvolutionEngine:
                 )
 
         initial_state = GenerationState(
-            index=0,
+            index=-1,
             population=tuple(initial),
             operator_counts={
                 "crossover": 0,
@@ -401,7 +402,7 @@ class EvolutionEngine:
         )
 
         _generation_summary(
-            0,
+            -1,
             initial,
             initial_state.operator_counts,
         )
@@ -413,7 +414,7 @@ class EvolutionEngine:
         current = initial
 
         for generation_index in range(
-            1,
+            0,
             config.generations,
         ):
 
