@@ -3,10 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Use the host's network namespace so the container can reach an Ollama
+    # server that is only listening on the host loopback (127.0.0.1:11434,
+    # the Ollama default). Override OLLAMA_HOST if Ollama runs elsewhere.
+    network_mode: host
     environment:
-      OLLAMA_HOST: http://host.docker.internal:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://127.0.0.1:11434}
     volumes:
       - ./data:/app/data:ro
       - ./results:/app/results

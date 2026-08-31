@@ -351,6 +351,87 @@ docker compose run --rm gp `
 
 ---
 
+# Temperature Sweep Experiment
+
+This experiment investigates whether the Ollama/Qwen **sampling temperature**
+affects (a) candidate diversity and (b) downstream heuristic / timetable
+performance. Temperature is the **only** variable that changes; every other
+parameter (instance, GP profile, population size, generations, tournament size,
+initial batch size, crossover/mutation rate, retry limit, seed, model) is held
+fixed and identical across all runs.
+
+## How temperature is configured
+
+Temperature is resolved with the following precedence (first match wins):
+
+1. `--temperature <float>` CLI argument to `llm_gp_hh.experiments.run`
+2. `LLM_TEMPERATURE` environment variable
+3. Built-in default (`0.4`) — unchanged from the previous behaviour
+
+The resolved value is stored on `RunConfig.temperature` and passed to
+`OllamaClient`, which forwards it to `ollama.chat(..., options={"seed": ...,
+"temperature": ...})`. It is recorded in every run's `run.json` (both as a
+top-level `temperature` field and inside `config`).
+
+The per-call Ollama `seed` is unchanged: it is derived deterministically from
+the run `--seed` and is **not** altered by this experiment.
+
+## How to run the sweep
+
+```bash
+./scripts/run_temperature_sweep.sh
+```
+
+Defaults: `RUN_MODE=docker` (uses `docker compose run --rm gp`, matching the
+benchmark commands above). Set `RUN_MODE=local` to use a local install instead.
+
+The Docker image bakes `src/` in at build time, so the script runs
+`docker compose build gp` once before the sweep. Set `SKIP_BUILD=1` to skip that
+(e.g. after building manually, or with `RUN_MODE=local`).
+
+Overridable via environment variables (keep these constant for a valid
+experiment): `TEMPERATURES`, `INSTANCE`, `PERIODS`, `PROFILE`,
+`POPULATION_SIZE`, `GENERATIONS`, `TOURNAMENT_SIZE`, `INITIAL_BATCH_SIZE`,
+`CROSSOVER_RATE`, `MUTATION_RATE`, `RETRY_LIMIT`, `SEED`, `MODEL`.
+
+## Temperatures tested
+
+```text
+0.2  0.4  0.6  0.8  1.0
+```
+
+(Override with e.g. `TEMPERATURES="0.1 0.5 0.9" ./scripts/run_temperature_sweep.sh`.)
+
+## Where results are stored and how they are separated
+
+Each temperature gets its own isolated subtree — results from different
+temperatures are never mixed:
+
+```text
+results/
+  temperature/
+    T_0.2/
+      sweep_run.json                     # temperature, model, full config, seed, timestamps, git commit
+      console.log                         # full stdout/stderr of the run
+      car-f-92-<UTCstamp>-seed1001/       # the experiment's own unchanged output
+        run.json summary.json best_heuristic.json
+        candidates.jsonl llm_calls.jsonl generations.csv
+    T_0.4/
+      ...
+    T_0.6/
+      ...
+    T_0.8/
+      ...
+    T_1.0/
+      ...
+```
+
+Existing results under `results/` are never modified or deleted. If any run
+fails, the sweep aborts immediately with a non-zero exit code (the partial
+`T_<temp>/` directory and its `console.log` are kept for inspection).
+
+---
+
 # Fitness
 
 Individuals are evaluated using:

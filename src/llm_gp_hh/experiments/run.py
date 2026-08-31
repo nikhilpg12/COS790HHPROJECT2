@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
+import os
 import platform
 from pathlib import Path
 import statistics
@@ -33,6 +34,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", choices=("dev", "paper"), default="dev")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--model", default="qwen3-coder:30b")
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=None,
+        help=(
+            "Ollama sampling temperature. If omitted, falls back to the "
+            "$LLM_TEMPERATURE environment variable, then to the built-in default."
+        ),
+    )
     parser.add_argument("--population-size", type=int)
     parser.add_argument("--generations", type=int)
     parser.add_argument("--tournament-size", type=int)
@@ -63,6 +73,15 @@ def _config_from_args(args: argparse.Namespace, seed: int) -> RunConfig:
         "llm_retry_limit": args.retry_limit,
     }
     changes.update({key: value for key, value in optional.items() if value is not None})
+
+    temperature = args.temperature
+    if temperature is None:
+        env_temperature = os.environ.get("LLM_TEMPERATURE")
+        if env_temperature is not None and env_temperature.strip():
+            temperature = float(env_temperature)
+    if temperature is not None:
+        changes["temperature"] = temperature
+
     return replace(base, **changes)
 
 
@@ -182,6 +201,7 @@ def persist_result(
             "periods": periods,
             "seed": seed,
             "model": config.model,
+            "temperature": config.temperature,
             "config": asdict(config),
             "started_at_utc": started_at.isoformat(),
             "finished_at_utc": finished_at.isoformat(),
@@ -225,7 +245,7 @@ def run_experiment(args: argparse.Namespace) -> Path:
     run_dir = config.results_dir / f"{instance.name}-{timestamp}-seed{seed}"
     logger = ExperimentLogger(run_dir)
     operators = QwenTreeOperators(
-        client=OllamaClient(model=config.model),
+        client=OllamaClient(model=config.model, temperature=config.temperature),
         retry_limit=config.llm_retry_limit,
     )
 

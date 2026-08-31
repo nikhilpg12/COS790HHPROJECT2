@@ -17,6 +17,7 @@ class RunConfig:
     llm_retry_limit: int = 2
     llm_failure_policy: str = "abort"
     seed: int | None = 42
+    temperature: float = 0.4
     results_dir: Path = Path("results")
 
     def __post_init__(self) -> None:
@@ -34,6 +35,8 @@ class RunConfig:
             raise ValueError("llm_retry_limit must be at least 1")
         if self.llm_failure_policy != "abort":
             raise ValueError("llm_failure_policy must be 'abort' for the baseline")
+        if not 0.0 <= self.temperature <= 2.0:
+            raise ValueError("temperature must be between 0.0 and 2.0")
         if self.crossover_rate < 0 or self.mutation_rate < 0:
             raise ValueError("operator rates must be non-negative")
         if abs((self.crossover_rate + self.mutation_rate) - 1.0) > 1e-9:
