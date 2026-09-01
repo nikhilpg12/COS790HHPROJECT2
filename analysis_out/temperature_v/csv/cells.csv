@@ -1,0 +1,6 @@
+instance,temperature,commit,n,n_complete,feasible_rate,mean_best_feasible_scv,stdev_best_feasible_scv,rankable
+car-f-92,0.200,8bfda5177179,1,1,1.000,4.643,,False
+car-f-92,0.400,8bfda5177179,1,1,1.000,4.681,,False
+car-f-92,0.600,8bfda5177179,1,1,1.000,4.796,,False
+car-f-92,0.800,8bfda5177179,1,1,1.000,4.845,,False
+car-f-92,1.000,8bfda5177179,1,0,,,,False

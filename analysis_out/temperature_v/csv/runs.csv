@@ -1,0 +1,6 @@
+run,instance,temperature,commit,git_dirty,state,convention,seed,model,n_generations_configured,evolution_phases_reached,n_candidates,n_llm_calls,feasibility_reached,best_feasible_scv,wall_seconds,issues
+results/temperature/T_0.2/car-f-92-20260831T144121Z-seed1001,car-f-92,0.200,8bfda5177179,True,complete,init_at_-1,1001,qwen3-coder:30b,10,10,220,159,True,4.643,2992.132,
+results/temperature/T_0.4/car-f-92-20260831T153114Z-seed1001,car-f-92,0.400,8bfda5177179,True,complete,init_at_-1,1001,qwen3-coder:30b,10,10,220,145,True,4.681,3011.874,
+results/temperature/T_0.6/car-f-92-20260831T162127Z-seed1001,car-f-92,0.600,8bfda5177179,True,complete,init_at_-1,1001,qwen3-coder:30b,10,10,220,156,True,4.796,2988.901,
+results/temperature/T_0.8/car-f-92-20260831T171116Z-seed1001,car-f-92,0.800,8bfda5177179,True,complete,init_at_-1,1001,qwen3-coder:30b,10,10,220,153,True,4.845,3063.666,
+results/temperature/T_1.0/car-f-92-20260831T180221Z-seed1001,car-f-92,1.000,8bfda5177179,True,empty,unknown,1001,qwen3-coder:30b,10,0,0,0,False,,,no output files (empty or not-yet-started run directory)

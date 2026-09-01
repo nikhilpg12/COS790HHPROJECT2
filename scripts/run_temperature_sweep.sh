@@ -46,9 +46,9 @@ RETRY_LIMIT="${RETRY_LIMIT:-2}"
 SEED="${SEED:-1001}"
 MODEL="${MODEL:-qwen3-coder:30b}"
 
-# RUN_MODE=docker  -> docker compose run --rm gp   (default; matches README)
-# RUN_MODE=local   -> python -m llm_gp_hh.experiments.run   (needs local install)
-RUN_MODE="${RUN_MODE:-docker}"
+# Experiments run only inside the project container: a host-side run would not
+# be comparable with a containerised one. There is deliberately no local mode.
+RUN_MODE="docker"
 
 # --------------------------------------------------------------------------
 # Paths
@@ -58,12 +58,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
-if [[ "${RUN_MODE}" == "docker" ]]; then
-  DATA_PREFIX="/app/data/toronto"
-  RESULTS_PREFIX="/app/results/temperature"
-else
-  DATA_PREFIX="data/toronto"
-  RESULTS_PREFIX="results/temperature"
+DATA_PREFIX="/app/data/toronto"
+RESULTS_PREFIX="/app/results/temperature"
+
+if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+  echo "ERROR: docker with Compose v2 is required; this sweep runs only in the" >&2
+  echo "       project container. See README setup." >&2
+  exit 1
 fi
 
 HOST_SWEEP_ROOT="${REPO_ROOT}/results/temperature"
@@ -71,8 +72,8 @@ mkdir -p "${HOST_SWEEP_ROOT}"
 
 # The Docker image bakes src/ in at build time, so a stale image will not have
 # the --temperature CLI argument. Rebuild once before the sweep (set
-# SKIP_BUILD=1 to skip, e.g. when you have just built manually or RUN_MODE=local).
-if [[ "${RUN_MODE}" == "docker" && "${SKIP_BUILD:-0}" != "1" ]]; then
+# SKIP_BUILD=1 to skip, e.g. when you have just built manually).
+if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
   echo "Building gp image (set SKIP_BUILD=1 to skip)..."
   docker compose build gp
 fi
@@ -123,11 +124,7 @@ for TEMP in "${TEMPERATURES[@]}"; do
     --results-dir "${CONTAINER_OUT_DIR}"
   )
 
-  if [[ "${RUN_MODE}" == "docker" ]]; then
-    CMD=(docker compose run --rm gp "${ARGS[@]}")
-  else
-    CMD=(python -m llm_gp_hh.experiments.run "${ARGS[@]}")
-  fi
+  CMD=(docker compose run --rm gp "${ARGS[@]}")
 
   echo
   echo "-------------------------------------------------------------------"

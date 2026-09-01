@@ -1,0 +1,16 @@
+tree,n_runs
+(* (+ a b) (- c d)),4
+(* (+ d e) (- f g)),4
+(+ (* a b) (/ c d)),4
+(+ (* a b) (/ f g)),4
+(+ a (+ b (* c d))),4
+(+ a b),4
+(if (< e f) (* a b) (+ c d)),4
+(if (< e h) (* c d) (+ f g)),4
+(* (+ a b) (+ c d)),3
+(+ (* a (+ b c)) (/ f g)),3
+(+ (* e f) (- g h)),3
+(+ (/ (+ a b) c) (* f g)),3
+(if (< a b) (* c d) (+ e f)),3
+(if (< a b) (+ c d) (* e f)),3
+(if (< e f) (* g h) (+ a b)),3

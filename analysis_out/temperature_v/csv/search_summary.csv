@@ -1,0 +1,6 @@
+run,time_to_feasibility_phase,time_to_feasibility_eval_seconds,generations_regressed,total_elitism_loss_fitness,final_best_is_global_best,parent_child_fitness_r,parent_child_hcv_r,parent_child_scv_r,parent_child_n,node_count_slope_per_phase
+results/temperature/T_0.2/car-f-92-20260831T144121Z-seed1001,5,1841.685,0,0.000,True,0.005,0.102,0.162,200,0.794
+results/temperature/T_0.4/car-f-92-20260831T153114Z-seed1001,4,1568.062,0,0.000,True,0.173,0.107,0.109,200,0.356
+results/temperature/T_0.6/car-f-92-20260831T162127Z-seed1001,1,792.812,0,0.000,True,0.197,0.112,0.046,200,0.579
+results/temperature/T_0.8/car-f-92-20260831T171116Z-seed1001,4,1597.118,0,0.000,True,-0.015,-0.007,-0.027,200,1.008
+results/temperature/T_1.0/car-f-92-20260831T180221Z-seed1001,,,0,0.000,,,,,0,

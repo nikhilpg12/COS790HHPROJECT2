@@ -1,0 +1,5 @@
+run,n_candidates,unique_tree_ratio,unique_canonical_ratio,canonical_collapse_trees,distinct_phenotypes,distinct_phenotype_ratio,terminal_kl_from_uniform,node_count_slope_per_phase,terminal_a,terminal_b,terminal_c,terminal_d,terminal_e,terminal_f,terminal_g,terminal_h
+results/temperature/T_0.2/car-f-92-20260831T144121Z-seed1001,220,0.773,0.750,10,210,0.955,0.010,0.794,216,185,214,155,251,233,232,197
+results/temperature/T_0.4/car-f-92-20260831T153114Z-seed1001,220,0.827,0.827,0,208,0.945,0.025,0.356,217,206,173,114,156,210,178,119
+results/temperature/T_0.6/car-f-92-20260831T162127Z-seed1001,220,0.855,0.850,2,209,0.950,0.013,0.579,227,229,186,143,243,209,198,167
+results/temperature/T_0.8/car-f-92-20260831T171116Z-seed1001,220,0.791,0.791,0,210,0.955,0.038,1.008,171,161,145,223,340,238,260,175

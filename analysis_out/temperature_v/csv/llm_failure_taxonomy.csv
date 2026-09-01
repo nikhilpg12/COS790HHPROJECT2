@@ -1,0 +1,16 @@
+run,category,count
+results/temperature/T_0.2/car-f-92-20260831T144121Z-seed1001,unchanged_parent,29
+results/temperature/T_0.2/car-f-92-20260831T144121Z-seed1001,depth_exceeded,4
+results/temperature/T_0.2/car-f-92-20260831T144121Z-seed1001,runaway_unterminated_json,1
+results/temperature/T_0.4/car-f-92-20260831T153114Z-seed1001,depth_exceeded,10
+results/temperature/T_0.4/car-f-92-20260831T153114Z-seed1001,unchanged_parent,5
+results/temperature/T_0.4/car-f-92-20260831T153114Z-seed1001,arity_or_parse,3
+results/temperature/T_0.4/car-f-92-20260831T153114Z-seed1001,runaway_unterminated_json,2
+results/temperature/T_0.6/car-f-92-20260831T162127Z-seed1001,unchanged_parent,17
+results/temperature/T_0.6/car-f-92-20260831T162127Z-seed1001,depth_exceeded,10
+results/temperature/T_0.6/car-f-92-20260831T162127Z-seed1001,arity_or_parse,3
+results/temperature/T_0.6/car-f-92-20260831T162127Z-seed1001,runaway_unterminated_json,1
+results/temperature/T_0.8/car-f-92-20260831T171116Z-seed1001,unchanged_parent,21
+results/temperature/T_0.8/car-f-92-20260831T171116Z-seed1001,arity_or_parse,3
+results/temperature/T_0.8/car-f-92-20260831T171116Z-seed1001,depth_exceeded,3
+results/temperature/T_0.8/car-f-92-20260831T171116Z-seed1001,runaway_unterminated_json,1
